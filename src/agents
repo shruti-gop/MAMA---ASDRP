@@ -1,20 +1,110 @@
 # This file contains placeholder functions (Agents) that define the 
 # individual, modular steps of the AI workflow.
 
+AGENT_COUNT = 0          # Set by Agent A (Minimality)
+TASK_ACCURACY = 0.0      # Set by Agent C (Performance Metric)
+TOTAL_COST = 0           # Set by Agent C (Cost Metric)
+SKIP_EXECUTION = False   # Set by Agent B (Conditional Branching)
+
 def agent_A():
     """Simulates the initial data loading or task setup phase."""
     print("A: Loading task scenario")
+    def run(self):
+            global AGENT_COUNT
+            print("\n[Agent A: Topology Generator] Starting run...")
+            
+            # Placeholder: Simulating topology generation (e.g., deciding to use 3 workers)
+            AGENT_COUNT = 3  
+            
+            print(f"A: Generated new DAG structure. Set AGENT_COUNT = {AGENT_COUNT}")
 
 def agent_B():
     """Simulates the primary heavy computation or AI model execution phase."""
     print("B: Running primary AI workflow")
+    def run(self):
+        global SKIP_EXECUTION
+        print("\n[Agent B: Acquisition Function] Starting run...")
+        
+        # Placeholder: Simulating UCB calculation logic
+        # For simplicity, we randomly decide to skip execution 25% of the time.
+        import random
+        should_skip = random.random() < 0.25
+        SKIP_EXECUTION = should_skip
+        
+        if SKIP_EXECUTION:
+            print("B: UCB Score is low. Skipping expensive execution step.")
+        else:
+            print("B: UCB Score is high. Proceeding to execution.")
 
 def agent_C():
     """Simulates a parallel task, such as monitoring, safety checks, 
     or adaptation logic."""
     print("C: Simulating interruption and adaptation")
+    def run(self):
+            global TASK_ACCURACY, TOTAL_COST
+            print("\n[Agent C: Executor] Starting run...")
+            
+            if SKIP_EXECUTION:
+                print("C: Execution skipped (Agent B determined it was not worth running).")
+                # If skipped, ensure metrics are not updated or are set to a penalty value
+                TASK_ACCURACY = 0.0 
+                TOTAL_COST = 0
+                return
+    
+            # Placeholder: Simulating LLM execution and result recording
+            # (This is where the actual LLM API calls and task evaluation would happen)
+            TASK_ACCURACY = random.uniform(0.70, 0.99)
+            TOTAL_COST = random.randint(100, 500)
+            
+            print(f"C: Task completed. TASK_ACCURACY = {TASK_ACCURACY:.2f}, TOTAL_COST = ${TOTAL_COST}")
 
 def agent_D():
     """Simulates the final aggregation, analysis, and reporting phase."""
     print("D: Evaluating and scoring results")
+    def run(self):
+            print("\n[Agent D: Objective Evaluator] Starting run...")
+            
+            if SKIP_EXECUTION:
+                final_score = -999.0 # Assign a very poor score for skipped runs
+                print(f"D: Execution was skipped. Assigning penalty score: {final_score}")
+                return
+    
+            # Objective Function: A simple balance of accuracy, cost, and complexity.
+            # Score = (Accuracy * 10) - (Cost / 100) - (Agent Count)
+            final_score = (TASK_ACCURACY * 10.0) - (TOTAL_COST / 100.0) - AGENT_COUNT
+            
+            print(f"D: Final Metrics: Accuracy={TASK_ACCURACY:.2f}, Cost=${TOTAL_COST}, Count={AGENT_COUNT}")
+            print(f"D: Calculated Objective Score: {final_score:.4f}")
 
+
+
+#running an iteration EXAMPLE
+"""
+if __name__ == "__main__":
+    import random
+    
+    A = AgentA()
+    B = AgentB()
+    C = AgentC()
+    D = AgentD()
+
+    # Reset state for demonstration
+    AGENT_COUNT = 0          
+    TASK_ACCURACY = 0.0      
+    TOTAL_COST = 0           
+    SKIP_EXECUTION = False 
+    
+    print("--- Starting HBO Iteration ---")
+    
+    A.run()
+    B.run()
+    C.run()
+    D.run()
+    
+    print("\n--- Final State after Iteration ---")
+    print(f"AGENT_COUNT: {AGENT_COUNT}")
+    print(f"TASK_ACCURACY: {TASK_ACCURACY:.2f}")
+    print(f"TOTAL_COST: ${TOTAL_COST}")
+
+"""
+    print(f"SKIP_EXECUTION: {SKIP_EXECUTION}")
