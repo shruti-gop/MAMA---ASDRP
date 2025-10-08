@@ -1,5 +1,6 @@
 import networkx as nx
 import typing as t
+import DAG
 
 class DAG:
     def __init__(self):
