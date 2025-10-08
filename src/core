@@ -1,1 +1,40 @@
+import networkx as nx
+import typing as t
+
+class DAG:
+    def __init__(self):
+        # Initializes a Directed Graph object from NetworkX.
+        self.graph = nx.DiGraph()
+
+    def add_node(self, name: str, func: t.Callable[[], None]):
+        """
+        Adds a node to the graph. The 'func' parameter holds the 
+        actual Python function to be executed later.
+        
+        Args:
+            name: A unique string identifier for the node (e.g., "A", "B").
+            func: The Python function (the Agent) to execute for this node.
+        """
+        self.graph.add_node(name, func=func)
+
+    def add_edge(self, src: str, dest: str):
+        """
+        Adds a directed edge, indicating that the source node (src) must 
+        complete before the destination node (dest) can run.
+        """
+        self.graph.add_edge(src, dest)
+
+    def run(self, start_node: str):
+        """
+        Executes the entire workflow using topological sorting.
+        """
+        print(f"--- Running DAG Workflow (Starting at: {start_node}) ---")
+        
+        try:
+            for node in nx.topological_sort(self.graph):
+                func = self.graph.nodes[node]['func']
+                print(f"[{node}] Executing...")
+                func()
+        except nx.NetworkXUnfeasible:
+            print("\nFATAL ERROR: The graph is not a DAG! A cycle was detected.")
 
