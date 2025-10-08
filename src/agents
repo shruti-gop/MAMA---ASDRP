@@ -1,1 +1,20 @@
+# This file contains placeholder functions (Agents) that define the 
+# individual, modular steps of the AI workflow.
+
+def agent_A():
+    """Simulates the initial data loading or task setup phase."""
+    print("A: Loading task scenario")
+
+def agent_B():
+    """Simulates the primary heavy computation or AI model execution phase."""
+    print("B: Running primary AI workflow")
+
+def agent_C():
+    """Simulates a parallel task, such as monitoring, safety checks, 
+    or adaptation logic."""
+    print("C: Simulating interruption and adaptation")
+
+def agent_D():
+    """Simulates the final aggregation, analysis, and reporting phase."""
+    print("D: Evaluating and scoring results")
 
