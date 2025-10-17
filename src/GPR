@@ -1,0 +1,5 @@
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF
+
+kernel = RBF()
+gpr = GaussianProcessRegressor(kernel=kernel)
