@@ -67,7 +67,24 @@ class MultiAgentSystem():
         message_dict['agent_response'] = agent_response
         message_dict['metrics'] = metrics
 
-        print("\n--- Agent 1 Metrics ---")
+        async def query_engine(query_str):
+    # """Ask the MAMA Query Engine a question and log performance metrics."""
+            global mama_engine, query_stats
+        
+            start_time = time.time()
+            response = await mama_engine.achat(query_str.strip())
+            elapsed = time.time() - start_time
+        
+            context_count = len(response.source_nodes)
+            entropy = compute_entropy(response.source_nodes)
+        
+            query_stats.append({
+                "query": query_str,
+                "response": response.response,
+                "context_count": context_count,
+                "entropy": entropy,
+                "latency": elapsed
+        })
         for key, value in metrics.items():
             print(f"{key}: {value}")
         return agent_response
