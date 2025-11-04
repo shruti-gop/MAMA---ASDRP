@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 load_dotenv()
 Chunck_size=1000
 Chunk_overlap=200
+paper_path= ""
+# We can decide the specifc path later
 openai_api_key = os.getenv("OPENAI_API_KEY")
 class MessageDict(TypedDict):
     user_question: str
@@ -81,7 +83,28 @@ class MultiAgentSystem():
         response = self.llm.generate([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text   
         return agent_response
+    
 
+    def run(self, paper_path: str):
+        message_dict: MessageDict = {
+            'paper_path': paper_path,
+            'vector_store': self.create_vector_store(paper_path),
+            'user_question': '',
+            'routing_strategy': '',
+            'context': '',
+            'agent_response': '',
+            'final_response': '',
+            'messages': []
+        }   
+        agent_1_response = self.agent_1(message_dict)
+        if agent_1_response.strip().lower() == 'agent2':
+            agent_2_response = self.agent_2(message_dict)
+            message_dict['agent_response'] = agent_2_response
+        elif agent_1_response.strip().lower() == 'agent3':
+            agent_3_response = self.agent_3(message_dict)
+            message_dict['agent_response'] = agent_3_response
+        else:
+            print(agent_1_response)    
 
 
 
