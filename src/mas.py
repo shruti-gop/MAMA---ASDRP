@@ -38,10 +38,10 @@ class MultiAgentSystem():
         vector_store = FAISS.from_documents(docs, self.embeddings)
         return vector_store
     
-    """Essentially, Agent 1 retrieves the releveant conetent from the 
-        passed in document appropriately chunks it and then
-        uses that to answer the user question. It then decided if 
-        Agent 2 or Agent 3 need to be called based on the queston being asked by the use.r"""
+  #  """Essentially, Agent 1 retrieves the releveant conetent from the 
+   #     passed in document appropriately chunks it and then
+    #    uses that to answer the user question. It then decided if 
+     #   Agent 2 or Agent 3 need to be called based on the queston being asked by the use.r"""
     
 
     def agent_1(self, message_dict: MessageDict) -> str:
@@ -57,7 +57,7 @@ class MultiAgentSystem():
         message_dict['agent_response'] = agent_response
         return agent_response
     
-    "Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
+    #"Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
     def agent_2(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
         user_question= message_dict['user_question']
@@ -65,7 +65,7 @@ class MultiAgentSystem():
         response = self.llm.generate([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text    
         return agent_response
-    "Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
+    #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
         user_question= message_dict['user_question']
