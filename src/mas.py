@@ -55,6 +55,21 @@ class MultiAgentSystem():
         response = self.llm.generate([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text
         message_dict['agent_response'] = agent_response
+        
+        start_llm = time.time()
+        response = self.llm.generate([HumanMessage(content=prompt)])
+        end_llm = time.time()
+
+        metrics["llm_response_time"] = round(end_llm - start_llm, 3)
+        metrics["total_agent_time"] = round(time.time() - start_total, 3)
+
+        agent_response = response.generations[0][0].text.strip()
+        message_dict['agent_response'] = agent_response
+        message_dict['metrics'] = metrics
+
+        print("\n--- Agent 1 Metrics ---")
+        for key, value in metrics.items():
+            print(f"{key}: {value}")
         return agent_response
     
     #"Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
