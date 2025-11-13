@@ -95,7 +95,7 @@ class MultiAgentSystem():
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' in detail provide the relevant evidence from the context: {context} and provice why it is appropriate to the passed in query. If you have no relevant evidence, output 'No evidence found for the passed in query.'"    
         response = self.llm.generate([HumanMessage(content=prompt)])
-        agent_response = response.generations[0][0].text    
+        agent_response = response.generations[0][0].text.strip()    
         return agent_response
     #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
@@ -103,7 +103,7 @@ class MultiAgentSystem():
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' with thorough detail na"#Still need to finish this off
         response = self.llm.generate([HumanMessage(content=prompt)])
-        agent_response = response.generations[0][0].text   
+        agent_response = response.generations[0][0].text.strip()   
         message_dict['agent_response'] = agent_response
         return agent_response
     # This agent essentially just finalizes the response and evaluates it to ensure it apporpriateness relative to the user question.
