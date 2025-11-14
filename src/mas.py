@@ -2,7 +2,7 @@ from typing import TypedDict
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import operator
 import os
@@ -24,7 +24,7 @@ class MessageDict(TypedDict):
 
 class MultiAgentSystem():
     def __init__(self, openai_api_key: str, chunk_size: int = Chunk_size, chunk_overlap: int = Chunk_overlap):
-        self.llm = ChatOpenAI(model_name="gpt-4", temperature=0, openai_api_key=openai_api_key)
+        self.llm = ChatOpenAI(model="gpt-4", temperature=0, openai_api_key=openai_api_key)
         self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -32,7 +32,7 @@ class MultiAgentSystem():
     def create_vector_store(self, paper_path: str) -> FAISS:
         loader = PyPDFLoader(paper_path)
         documents = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunck_size, chunk_overlap=self.chunk_overlap)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
         docs = text_splitter.split_documents(documents)
         vector_store = FAISS.from_documents(docs, self.embeddings)
         return vector_store
@@ -77,9 +77,10 @@ class MultiAgentSystem():
     def agent_4(self, message_dict: MessageDict) -> str:
         agent_response= message_dict['agent_response']
         user_question= message_dict['user_question']
+        paper_path = message_dict['paper_path']
         loader = PyPDFLoader(paper_path)
         documents = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunck_size, chunk_overlap=self.chunk_overlap)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
         docs = text_splitter.split_documents(documents)
         vector_store = FAISS.from_documents(docs, self.embeddings)
         docs = vector_store.similarity_search(user_question, k=4)
@@ -90,11 +91,11 @@ class MultiAgentSystem():
         return agent_response
     
 
-    def run(self, paper_path: str):
+    def run(self, paper_path: str,user_question: str='') -> MessageDict:
         message_dict: MessageDict = {
             'paper_path': paper_path,
             'vector_store': self.create_vector_store(paper_path),
-            'user_question': '',
+            'user_question': user_question,
             'routing_strategy': '',
             'context': '',
             'agent_response': '',
@@ -121,3 +122,7 @@ class MultiAgentSystem():
 
 
 
+# multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key)
+# paper_path = "C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
+# message_dict = multi_agent_system.run(paper_path,"user_question='What evidence does the paper provide to support its main claim?'")
+# print("Final Response:", message_dict['final_response'])
