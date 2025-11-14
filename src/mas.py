@@ -46,7 +46,7 @@ class MultiAgentSystem():
 
     def agent_1(self, message_dict: MessageDict) -> str:
         vector_store = message_dict['vector_store']
-        user_question= input("Enter your question: ")
+        user_question= ""
         message_dict['user_question']=user_question
         docs = vector_store.similarity_search(user_question, k=4)
         context = "\n".join([doc.page_content for doc in docs])
