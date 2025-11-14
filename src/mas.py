@@ -8,9 +8,8 @@ import operator
 import os
 from dotenv import load_dotenv
 load_dotenv()
-Chunck_size=1000
+Chunk_size=1000
 Chunk_overlap=200
-paper_path= ""
 # We can decide the specifc path later
 openai_api_key = os.getenv("OPENAI_API_KEY")
 class MessageDict(TypedDict):
@@ -21,10 +20,10 @@ class MessageDict(TypedDict):
     context: str
     agent_response: str
     final_response: str
-    messages: list[HumanMessage | AIMessage]
+    messages: dict{HumanMessage: "", AIMessage: ""}
 
 class MultiAgentSystem():
-    def __init__(self, openai_api_key: str, chunk_size: int = Chunck_size, chunk_overlap: int = Chunk_overlap):
+    def __init__(self, openai_api_key: str, chunk_size: int = Chunk_size, chunk_overlap: int = Chunk_overlap):
         self.llm = ChatOpenAI(model_name="gpt-4", temperature=0, openai_api_key=openai_api_key)
         self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
         self.chunk_size = chunk_size
@@ -51,68 +50,42 @@ class MultiAgentSystem():
         docs = vector_store.similarity_search(user_question, k=4)
         context = "\n".join([doc.page_content for doc in docs])
         message_dict['context'] = context
-        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respone with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If the query cannot be answered using the two agents, then respons with 'please pass in appropriate query'."
+        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respone with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If the query cannot be answered using the two agents, then respond with 'please pass in appropriate query'."
         response = self.llm.generate([HumanMessage(content=prompt)])
-        agent_response = response.generations[0][0].text
+        agent_response = response.invoke[0][0].text.strip()
         message_dict['agent_response'] = agent_response
-        
-        start_llm = time.time()
-        response = self.llm.generate([HumanMessage(content=prompt)])
-        end_llm = time.time()
-
-        metrics["llm_response_time"] = round(end_llm - start_llm, 3)
-        metrics["total_agent_time"] = round(time.time() - start_total, 3)
-
-        agent_response = response.generations[0][0].text.strip()
-        message_dict['agent_response'] = agent_response
-        message_dict['metrics'] = metrics
-
-        async def query_engine(query_str):
-    # """Ask the MAMA Query Engine a question and log performance metrics."""
-            global mama_engine, query_stats
-        
-            start_time = time.time()
-            response = await mama_engine.achat(query_str.strip())
-            elapsed = time.time() - start_time
-        
-            context_count = len(response.source_nodes)
-            entropy = compute_entropy(response.source_nodes)
-        
-            query_stats.append({
-                "query": query_str,
-                "response": response.response,
-                "context_count": context_count,
-                "entropy": entropy,
-                "latency": elapsed
-        })
-        for key, value in metrics.items():
-            print(f"{key}: {value}")
         return agent_response
-    
+
     #"Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
     def agent_2(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' in detail provide the relevant evidence from the context: {context} and provice why it is appropriate to the passed in query. If you have no relevant evidence, output 'No evidence found for the passed in query.'"    
-        response = self.llm.generate([HumanMessage(content=prompt)])
+        response = self.llm.invoke([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text.strip()    
         return agent_response
     #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
         user_question= message_dict['user_question']
-        prompt= f"Based on the query '{user_question}' with thorough detail na"#Still need to finish this off
-        response = self.llm.generate([HumanMessage(content=prompt)])
+        prompt= f"Based on the query '{user_question}' with thorough detail analyze the claim made within the research paper using the context: {context} and provide a comprehensive response to the user question."
+        response = self.llm.invoke([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text.strip()   
         message_dict['agent_response'] = agent_response
         return agent_response
     # This agent essentially just finalizes the response and evaluates it to ensure it apporpriateness relative to the user question.
     def agent_4(self, message_dict: MessageDict) -> str:
-        context= message_dict['context']
         agent_response= message_dict['agent_response']
         user_question= message_dict['user_question']
-        prompt= f"Based on the query '{user_question}' with thorough detail na"#Still need to finish this off
-        response = self.llm.generate([HumanMessage(content=prompt)])
+        loader = PyPDFLoader(paper_path)
+        documents = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunck_size, chunk_overlap=self.chunk_overlap)
+        docs = text_splitter.split_documents(documents)
+        vector_store = FAISS.from_documents(docs, self.embeddings)
+        docs = vector_store.similarity_search(user_question, k=4)
+        context = "\n".join([doc.page_content for doc in docs])
+        prompt= f"Based on the query '{user_question}' use the {context} to evaluate the following response outputted by the previous agent: {agent_response}. Then provide a score that assesses how well the previous agent's response answers the user question on a scale of 1 to 10, with 10 being the highest. Provide reasoning for giving the score and suggest any improvements if necessary."
+        response = self.llm.invoke([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text   
         return agent_response
     
@@ -129,14 +102,17 @@ class MultiAgentSystem():
             'messages': []
         }   
         agent_1_response = self.agent_1(message_dict)
-        if agent_1_response.strip().lower() == 'agent2':
+        if agent_1_response.lower() == 'agent2':
             agent_2_response = self.agent_2(message_dict)
             message_dict['agent_response'] = agent_2_response
-        elif agent_1_response.strip().lower() == 'agent3':
+        elif agent_1_response.lower() == 'agent3':
             agent_3_response = self.agent_3(message_dict)
             message_dict['agent_response'] = agent_3_response
         else:
-            print(agent_1_response)    
+            print(agent_1_response)  
+        final_response = self.agent_4(message_dict)
+        message_dict['final_response'] = final_response
+        return message_dict  
 
 
 
