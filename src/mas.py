@@ -55,6 +55,38 @@ class MultiAgentSystem():
         response = self.llm.generate([HumanMessage(content=prompt)])
         agent_response = response.generations[0][0].text
         message_dict['agent_response'] = agent_response
+        
+        start_llm = time.time()
+        response = self.llm.generate([HumanMessage(content=prompt)])
+        end_llm = time.time()
+
+        metrics["llm_response_time"] = round(end_llm - start_llm, 3)
+        metrics["total_agent_time"] = round(time.time() - start_total, 3)
+
+        agent_response = response.generations[0][0].text.strip()
+        message_dict['agent_response'] = agent_response
+        message_dict['metrics'] = metrics
+
+        async def query_engine(query_str):
+    # """Ask the MAMA Query Engine a question and log performance metrics."""
+            global mama_engine, query_stats
+        
+            start_time = time.time()
+            response = await mama_engine.achat(query_str.strip())
+            elapsed = time.time() - start_time
+        
+            context_count = len(response.source_nodes)
+            entropy = compute_entropy(response.source_nodes)
+        
+            query_stats.append({
+                "query": query_str,
+                "response": response.response,
+                "context_count": context_count,
+                "entropy": entropy,
+                "latency": elapsed
+        })
+        for key, value in metrics.items():
+            print(f"{key}: {value}")
         return agent_response
     
     #"Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
@@ -63,7 +95,7 @@ class MultiAgentSystem():
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' in detail provide the relevant evidence from the context: {context} and provice why it is appropriate to the passed in query. If you have no relevant evidence, output 'No evidence found for the passed in query.'"    
         response = self.llm.generate([HumanMessage(content=prompt)])
-        agent_response = response.generations[0][0].text    
+        agent_response = response.generations[0][0].text.strip()    
         return agent_response
     #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
@@ -71,7 +103,7 @@ class MultiAgentSystem():
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' with thorough detail na"#Still need to finish this off
         response = self.llm.generate([HumanMessage(content=prompt)])
-        agent_response = response.generations[0][0].text   
+        agent_response = response.generations[0][0].text.strip()   
         message_dict['agent_response'] = agent_response
         return agent_response
     # This agent essentially just finalizes the response and evaluates it to ensure it apporpriateness relative to the user question.
