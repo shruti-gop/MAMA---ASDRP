@@ -1,12 +1,12 @@
 from typing import TypedDict
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-import operator
 import os
 from dotenv import load_dotenv
+import pypdf
 load_dotenv()
 Chunk_size=1000
 Chunk_overlap=200
@@ -45,12 +45,12 @@ class MultiAgentSystem():
 
     def agent_1(self, message_dict: MessageDict) -> str:
         vector_store = message_dict['vector_store']
-        user_question= ""
-        message_dict['user_question']=user_question
+        user_question = message_dict['user_question']
+        message_dict['user_question'] = user_question
         docs = vector_store.similarity_search(user_question, k=4)
         context = "\n".join([doc.page_content for doc in docs])
         message_dict['context'] = context
-        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respone with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If the query cannot be answered using the two agents, then respond with 'please pass in appropriate query'."
+        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respond with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If the query cannot be answered using the two agents, then respond with 'please pass in appropriate query'. Your response must be only one word"
         response = self.llm.invoke(prompt)
         agent_response = response.content.strip()
         message_dict['agent_response'] = agent_response
@@ -69,7 +69,7 @@ class MultiAgentSystem():
         context= message_dict['context']
         user_question= message_dict['user_question']
         prompt= f"Based on the query '{user_question}' with thorough detail analyze the claim made within the research paper using the context: {context} and provide a comprehensive response to the user question."
-        response = self.llm.invoke(HumanMessage(content=prompt))
+        response = self.llm.invoke(prompt)
         agent_response = response.content.strip() 
         message_dict['agent_response'] = agent_response
         return agent_response
@@ -86,7 +86,7 @@ class MultiAgentSystem():
         docs = vector_store.similarity_search(user_question, k=4)
         context = "\n".join([doc.page_content for doc in docs])
         prompt= f"Based on the query '{user_question}' use the {context} to evaluate the following response outputted by the previous agent: {agent_response}. Then provide a score that assesses how well the previous agent's response answers the user question on a scale of 1 to 10, with 10 being the highest. Provide reasoning for giving the score and suggest any improvements if necessary."
-        response = self.llm.invoke(HumanMessage(content=prompt))
+        response = self.llm.invoke(prompt)
         agent_response = response.content.strip()   
         return agent_response
     
@@ -122,7 +122,7 @@ class MultiAgentSystem():
 
 
 
-# multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key)
-# paper_path = "C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
-# message_dict = multi_agent_system.run(paper_path,"user_question='What evidence does the paper provide to support its main claim?'")
-# print("Final Response:", message_dict['final_response'])
+multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key)
+paper_path = r"C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
+message_dict = multi_agent_system.run(paper_path,"What evidence does the paper provide to support its main claim?")
+print("Final Response:", message_dict['final_response'])
