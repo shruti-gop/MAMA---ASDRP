@@ -7,12 +7,6 @@ from langchain_community.document_loaders import PyPDFLoader
 import os
 from dotenv import load_dotenv
 import pypdf
-from ragas import evaluate
-from ragas.metrics import (faithfulness,answer_relevancy,context_precision,context_recall,answer_similarity,answer_correctness)
-import pandas as pd
-from datasets import Dataset
-from ragas.llms import LangchainLLMWrapper
-from ragas.embeddings import LangchainEmbeddingsWrapper
 
 load_dotenv()
 Chunk_size=1000
@@ -31,8 +25,8 @@ class MessageDict(TypedDict):
 
 class MultiAgentSystem():
     def __init__(self, openai_api_key: str, chunk_size: int = Chunk_size, chunk_overlap: int = Chunk_overlap):
-        self.llm_orchestrator= ChatOpenAI(model="gpt-4.1-nano", temperature=0, openai_api_key=openai_api_key)
-        self.llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0, openai_api_key=openai_api_key)
+        self.llm_orchestrator= ChatOpenAI(model="gpt-4", temperature=0, openai_api_key=openai_api_key)
+        self.llm = ChatOpenAI(model="gpt-4", temperature=0, openai_api_key=openai_api_key)
         self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -40,7 +34,7 @@ class MultiAgentSystem():
     def create_vector_store(self, paper_path: str) -> FAISS:
         loader = PyPDFLoader(paper_path)
         documents = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap,)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
         docs = text_splitter.split_documents(documents)
         vector_store = FAISS.from_documents(docs, self.embeddings)
         return vector_store
@@ -54,10 +48,11 @@ class MultiAgentSystem():
     def agent_1(self, message_dict: MessageDict) -> str:
         vector_store = message_dict['vector_store']
         user_question = message_dict['user_question']
+        message_dict['user_question'] = user_question
         docs = vector_store.similarity_search(user_question, k=4)
         context = "\n".join([doc.page_content for doc in docs])
         message_dict['context'] = context
-        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respond with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If and only if the query cannot be answered using the two agents, then you can respond with a appropriate messae to answer the user query. However, for any response that can be answered by Agent 2 or Agent 3, your response must be only one word either 'Agent2' or 'Agent3'."
+        prompt = f"Using the following context:{context}, anayze the query: {user_question} and decide the appropriate Agent to use. If the passed in query is related to understanding the evidence used within the research paper, respond with 'Agent2'. If the the query is asking about the claim and general nature of the research paper, then respond with 'Agent3'. If the query cannot be answered using the two agents, then respond with 'please pass in appropriate query'. Your response must be only one word"
         response = self.llm_orchestrator.invoke(prompt)
         agent_response = response.content.strip()
         message_dict['agent_response'] = agent_response
@@ -67,12 +62,10 @@ class MultiAgentSystem():
     def agent_2(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
         user_question= message_dict['user_question']
-        prompt= f"Based on the query '{user_question}' in detail provide the relevant evidence from the context: {context} and provice why it is appropriate to the passed in query. If you have no relevant evidence, output 'No evidence found for the passed in query. Make sure that you provide a detailed response with exact refrences and if applicable numerical data from the research paper to support your answer."    
+        prompt= f"Based on the query '{user_question}' in detail provide the relevant evidence from the context: {context} and provice why it is appropriate to the passed in query. If you have no relevant evidence, output 'No evidence found for the passed in query.'"    
         response = self.llm.invoke(prompt)
-        agent_response = response.content.strip() 
-        message_dict['agent_response'] = agent_response  
+        agent_response = response.content.strip()   
         return agent_response
-    
     #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
         context= message_dict['context']
@@ -82,14 +75,19 @@ class MultiAgentSystem():
         agent_response = response.content.strip() 
         message_dict['agent_response'] = agent_response
         return agent_response
-    
     # This agent essentially just finalizes the response and evaluates it to ensure it apporpriateness relative to the user question.
     def agent_4(self, message_dict: MessageDict) -> str:
         agent_response= message_dict['agent_response']
         user_question= message_dict['user_question']
         paper_path = message_dict['paper_path']
-        context = message_dict['context']
-        prompt= f"Based on the query '{user_question}' use the {context} to evaluate the following response outputted by the previous agent: {agent_response}. Then provide a score that assesses how well the previous agent's response answers the user question on a scale of 1 to 10, with 10 being the highest. Provide reasoning for giving the score and suggest any improvements if necessary. If the {message_dict['routing_strategy']} was agent2 only check to see if the evidence provided is relevant and accurate. If it was agent3, ensure that the analysis of the claim is thorough and well-supported by the context and properly explains the reasonings."
+        loader = PyPDFLoader(paper_path)
+        documents = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=self.chunk_size, chunk_overlap=self.chunk_overlap)
+        docs = text_splitter.split_documents(documents)
+        vector_store = FAISS.from_documents(docs, self.embeddings)
+        docs = vector_store.similarity_search(user_question, k=4)
+        context = "\n".join([doc.page_content for doc in docs])
+        prompt= f"Based on the query '{user_question}' use the {context} to evaluate the following response outputted by the previous agent: {agent_response}. Then provide a score that assesses how well the previous agent's response answers the user question on a scale of 1 to 10, with 10 being the highest. Provide reasoning for giving the score and suggest any improvements if necessary."
         response = self.llm.invoke(prompt)
         agent_response = response.content.strip()   
         return agent_response
@@ -97,70 +95,30 @@ class MultiAgentSystem():
 
     def run(self, paper_path: str,user_question: str='') -> MessageDict:
         message_dict: MessageDict = {
-            "research_paper_number": 0,
             'paper_path': paper_path,
             'vector_store': self.create_vector_store(paper_path),
             'user_question': user_question,
-            'context':'',
-            'routing_strategy':'',
+            'context': '',
             'agent_response': '',
             'final_response': '',
         }   
 
         agent_1_response = self.agent_1(message_dict)
-
         if agent_1_response.lower() == 'agent2':
-            message_dict['routing_strategy']='Agent2'
             agent_2_response = self.agent_2(message_dict)
             message_dict['agent_response'] = agent_2_response
-
         elif agent_1_response.lower() == 'agent3':
-            message_dict['routing_strategy']='Agent3'
             agent_3_response = self.agent_3(message_dict)
             message_dict['agent_response'] = agent_3_response
-
         else:
             print(agent_1_response)  
-        
-        message_dict['final_response'] = self.agent_4(message_dict)
+        final_response = self.agent_4(message_dict)
+        message_dict['final_response'] = final_response
         return message_dict
-    
-    def dataset_for_evaluation(self, user_question:str, agent_response:str, context:str):
-        context_list = [chunk.strip() for chunk in context.split('\n') if chunk.strip()]
-        dataset={
-                "question": [user_question],
-                "answer": [agent_response],
-                "contexts": [context_list]
-            }
-        
-        ragas_llm = LangchainLLMWrapper(self.llm)
-        ragas_embeddings = LangchainEmbeddingsWrapper(self.embeddings)
-        
-        evaluation_dataset = Dataset.from_dict(dataset)
-        result= evaluate(
-            evaluation_dataset,
-            metrics=[
-                faithfulness,
-                answer_relevancy, 
-            ], 
-                llm=ragas_llm,
-                embeddings=ragas_embeddings              
-              
-        )
-        return result.to_pandas()
-    
 
 
-
-
-# Using the Code:
 
 multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key)
 paper_path = r"C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
 message_dict = multi_agent_system.run(paper_path,"What evidence does the paper provide to support its main claim?")
-results= multi_agent_system.dataset_for_evaluation(message_dict['user_question'],message_dict['agent_response'],message_dict['context'])
-print("User Question:", message_dict['user_question'])
-print("routing strategy:", message_dict['routing_strategy'])
-print("agent response:", message_dict['agent_response'])
 print("Final Response:", message_dict['final_response'])
-print("Evaluation Results:\n", results)
