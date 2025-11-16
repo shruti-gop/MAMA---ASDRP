@@ -77,11 +77,11 @@ class MultiAgentSystem():
             - Implications, significance, or potential applications of the research findings.
             - Limitations or future work that the author(s) suggest in the research paper.
             - If the query asks about reasoning, justification, or analysis that supports a claim which is qualitative and not specific to data or methods, as that falls under Agent2.
-        CRITICAL RULES:
-- If the query mentions specific metrics, scores, or numerical comparisons → Agent2
-- If the query uses words like "compare" with data/results → Agent2
-- If the query asks "how" something works conceptually (no metrics) → Agent3
-- If the query asks "why" about research motivation/implications → Agent3
+        RULES:
+        - If the query mentions specific metrics, scores, or numerical comparisons ==> Agent2
+        - If the query uses words like "compare" with data/results ==> Agent2
+        - If the query asks "how" something works conceptually (no metrics) ==> Agent3
+        - If the query asks "why" about research motivation/implications ==> Agent3
         IMPORTANT:
         Your response must be only one word: either 'Agent2' or 'Agent3'.
          If the query does not fit into either of these categories, respond with 'Unanswerable'."""
