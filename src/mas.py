@@ -8,16 +8,50 @@ import os
 from dotenv import load_dotenv
 import pypdf
 from ragas import evaluate
-from ragas.metrics import (faithfulness,answer_relevancy,context_precision,context_recall,answer_similarity,answer_correctness)
+from ragas.metrics import (faithfulness,answer_relevancy,answer_correctness)
 import pandas as pd
 from datasets import Dataset
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
+import code_analysis
+
+k_vals=[4,5,6,7,8]
+k_value_df= code_analysis.DataCreation("k value",k_vals)
+chunking_overs=[90,120,150,180,210]
+chunking_overs_df=code_analysis.DataCreation("Chunking Overlap",chunking_overs)
+chunking_sizes= [900,1200,1500,1800,2100]
+chunking_sizes_df=code_analysis.DataCreation("Chunking Size", chunking_sizes)
+chunking_models=["gpt-4.1-nano","gpt-4.1-mini","gpt-4.1"]
+chunking_models_df=code_analysis.DataCreation("Models",chunking_models)
+
+questions=[
+    "How do the F1 scores compare between the DeClarE configuration and the other configurations that require manual intervention?",
+    "The authors claim that “our method does not require any feature-engineering, lexicons, or other manual intervention” (Popat et al.). What is the significance of this in regards to the limitations of prior methods, and what are the differences in design that make this possible?",
+    "What was the setup under which the experiment was performed for evaluating their approach and providing evidence for their approach?"  
+]
+ground_truths=[
+    """
+The results in terms of F1 score were Distant Supervision configuration resulting in the highest for the Snopes dataset with 0.82 and DeClarE (full) with 0.79. 
+Although DeClarE scores lower, it does have the advantage of not requiring manual intervention which makes it more applicable for larger use cases. 
+In the PolitiFact dataset, the DeClarE scored the highest F1 score with 0.68, while the highest manual intervention configuration scored 0.64 (CNN-text) in that same dataset.
+""",
+"""
+The limitations of the prior methods were the required manual feature engineering and lexicons. 
+As the style of the text is altered, these manual methods do not work and therefore are not able to be generalized. 
+DeClarE allows the method to not use any manual intervention like conventional methods through looking at the correlation between the claim and its supporting articles through an attention mechanism. With this method it can determine the accuracy of misinformation without the help of manual intervention such as lexicons, making the model more adaptable across different contexts.
+""",
+"""
+Used the Snopes, PolitiFact and NewsTrust datasets. Reserved 10% of the data as validation data for parameter tuning. 
+Reported 10-fold cross validation results on the remaining 90% of the data. 
+The model is trained on 9-folds and the remaining fold is used as test data.
+"""
+]
 
 load_dotenv()
-Chunk_size=1000
-Chunk_overlap=200
-k_value=4
+Chunk_size=1500
+Chunk_overlap=150
+k_value=6
+
 # We can decide the specifc path later
 openai_api_key = os.getenv("OPENAI_API_KEY")
 class MessageDict(TypedDict):
@@ -32,9 +66,10 @@ class MessageDict(TypedDict):
     
 
 class MultiAgentSystem():
-    def __init__(self, openai_api_key: str, chunk_size: int = Chunk_size, chunk_overlap: int = Chunk_overlap, int=k_value):
-        self.llm_orchestrator= ChatOpenAI(model="gpt-4.1-nano", temperature=0, openai_api_key=openai_api_key)
-        self.llm = ChatOpenAI(model="gpt-4.1-nano", temperature=0, openai_api_key=openai_api_key)
+    def __init__(self, openai_api_key: str, model: str, chunk_size: int= Chunk_size, chunk_overlap: int=Chunk_overlap, k_value: int=k_value):        
+        self.llm_orchestrator= ChatOpenAI(model=model, temperature=0, openai_api_key=openai_api_key)
+        self.llm = ChatOpenAI(model=model, temperature=0, openai_api_key=openai_api_key)
+        self.llm_ground=ChatOpenAI(model=model, temperature=0, openai_api_key=openai_api_key)
         self.embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -57,7 +92,7 @@ class MultiAgentSystem():
     def agent_1(self, message_dict: MessageDict) -> str:
         vector_store = message_dict['vector_store']
         user_question = message_dict['user_question']
-        docs = vector_store.similarity_search(user_question, k=k_value)
+        docs = vector_store.similarity_search(user_question, k=self.k_value)
         context = "\n".join([doc.page_content for doc in docs])
         message_dict['context'] = context
         prompt = f"""
@@ -90,46 +125,11 @@ class MultiAgentSystem():
         agent_response = response.content.strip()
         message_dict['agent_response'] = agent_response
         
-        context_prompt= f"""
-
-        You are an expert research analyst and critical thinker who is tasked with extracting and summarizing the most crucial and relevant information from research papers.
-
-        Provided with the research paper context: {context}, 
-        Provided the agent decision: {agent_response}, 
-        and the user question: {user_question},
-        generate a descriptive context that can be passed down to the subsequent 
-        agent to ensure that they have the required information to answer the user's question 
-        effectively and accurately. 
-
-        Information Of Structure:
-        - All of the information provided in the context must be from the provided context and not fabricated.
-        - The generated context must be concise yet comprehensive, capturing all essential details that are pertinent to the user question, with the location of such details in the research paper to refrence For example: figures, tables, exact data curations.
-        - Ensure the usage of clear, precise and exact details from the passed in context.
-
-        if {agent_response} is 'Agent2', 
-        ensure that the context focuses on:
-            - Evidence, data, experiments, methodology, procedures, statistical analysis, and quantitative details presented in the research paper that are important and directly relevant to the user question.
-            - Methodology, experimental setup, or a procedure that was used in the research paper.
-            - If applicable, include dataset details, evaluation approaches, and specific numerical details.
-
-        if {agent_response} is 'Agent3', ensure that the context focuses on while mantaining depth and relevance to the user question:
-            - The main claim or hypothesis of the research paper or the conclusions drawn by the authors
-            - General nature or purpose of the research paper
-            - Implications, significance, or potential applications of the research findings
-            - Limitations or future work that the author(s) suggest in the research paper
-            - If the query asks about reasoning, justification, or analysis that supports a claim, which is qualitative and not specific to data or methods.
-
-        IMPORTANT: The context generated must be highly relevant to the user's question and in-depth, including all relevant and crucial parts that can help agents 2 or 3 effectively answer the user's question using the context that you will generate.
-        Output Format:
-        - Provide the generated context in clear, coherent in 400-600 words.
-        - Ensure that the structure of the generated context is a bullet point format with exact refrences and if applicable numerical data from the research paper to support the query.
-        """
-        message_dict["sent_context"] = self.llm.invoke(context_prompt).content.strip()
         return agent_response
 
     #"Agent 2 is called by Agent 1 if the user question is related to understanding the evidence within the research paper passed in."
     def agent_2(self, message_dict: MessageDict) -> str:
-        sent_context= message_dict['sent_context']
+        sent_context= message_dict['context']
         user_question= message_dict['user_question']
         prompt= f"""
         You are an expert research analyst and critical thinker who is tasked with extracting and explaining evidence from research papers.
@@ -146,7 +146,7 @@ class MultiAgentSystem():
         5. If you have no relevant evidence, output 'No evidence found for the passed in query.'
 
         Format your response as follows:
-        - Write a concise 250-500 word summary of the relevant evidence with exact references and numerical data from the research paper(If applicable) that directly addresses the user question.
+        - Write a concise 150-200 word summary of the relevant evidence with exact references and numerical data from the research paper(If applicable) that directly addresses the user question.
         - Provide a brief explanation of why this evidence is appropriate and how it relates to the user question.
         - Ensure clarity and flow in your response.
         """    
@@ -157,7 +157,7 @@ class MultiAgentSystem():
     
     #"Agent 3 is called by Agent 1 if the user question is related to analyzing and understanding the nature of the research paper passed in, along with its "
     def agent_3(self, message_dict: MessageDict) -> str:
-        sent_context= message_dict['sent_context']
+        sent_context= message_dict['context']
         user_question= message_dict['user_question']
         prompt= f"""
         You are an expert research analyst and critical thinker.
@@ -174,7 +174,7 @@ class MultiAgentSystem():
         Research Paper Context:{sent_context}.
     
         Format your response as follows:
-        - Write a concise 250-500 word summary of the relevant extracted details with exact references and qualitiative information from the research paper(If applicable) that directly addresses the user question.
+        - Write a concise 150-200 word summary of the relevant extracted details with exact references and qualitiative information from the research paper(If applicable) that directly addresses the user question.
         - Provide a brief explanation of why this evidence is appropriate and how it relates to the user question.
         - Ensure clarity and flow in your response.
 """
@@ -190,35 +190,21 @@ class MultiAgentSystem():
         paper_path = message_dict['paper_path']
         context = message_dict['context']
         prompt= f"""
-        Based on the query '{user_question}' use the {context} to evaluate the following 
-        response outputted by the previous agent: {agent_response}.
-        
+            You are an expert research analyst. You have access to the entire research paepr.
+            Research Paper: {context}
+
+            Question: {user_question}
+             Task: Provide a comprehensive, accurate answer to this question based off of the whole research paper being provided.
+             - Include specifc and exact details: Like as much quantative data as possible. 
+             - Be thorough and percise
+             - Make sure to cite specific sections/page numbers whenever appropriate and relevant
+             - Length: 150-250 words.
         Important:
-           - Ensure to use proper reasoning to evaluate the response based on whether it includes the right information and follows the metric as appropriate.
-           - If the {message_dict['routing_strategy']} was agent2 check to see if the evidence provided is relevant 
-            and accurate. If it was agent3, ensure that the analysis of the text is thorough and well-supported by the 
-            context and properly explains the reasonings."
-
-        Use the following Metric to do so:
-        if {message_dict['routing_strategy']} is 'Agent2', 
-         1. **Relevance (0-0.3):** Does the response identify relevant evidence, data, experiments, or methodology?
-         2. **Specificity (0-0.3):** Does it include exact numbers, metrics, dataset details, or specific references?
-         3. **Accuracy (0-0.2):** Is the information factually correct based on the context?
-         4. **Completeness (0-0.2):** Does it fully address all aspects of the questi
-        if {message_dict['routing_strategy']} is 'Agent3', ensure that the context focuses on while mantaining depth and relevance to the user question:
-         1. **Relevance (0-0.3):** Does the response address the main claims, implications, or reasoning asked about?
-         2. **Depth (0-0.3):** Does it provide thorough analysis of the authors' reasoning and justification?
-         3. **Accuracy (0-0.2):** Is the interpretation faithful to what the authors actually state?
-         4. **Completeness (0-0.2):** Does it cover claims, implications, limitations, or future work as relevant?
-
-        Format:
-          Provide a score that assesses how well the previous agent's response answers the user question on a scale of 0 to 1, 
-          with 1 identifying the rsponse as that of following the metric perfectly. .7 meaning that the response encompassed most of the parts of the metric.
-          .5 meaning that the response is poor and not up to the standards of the metric.
+        This response will serve as a refrence ground truth for evaluation purpose.
           """
-        response = self.llm.invoke(prompt)
-        agent_response = response.content.strip()   
-        return agent_response
+        response = self.llm_ground.invoke(prompt)
+        message_dict["final_response"]= response.content.strip()   
+        return response.content.strip()
     
 
     def run(self, paper_path: str,user_question: str='') -> MessageDict:
@@ -248,15 +234,16 @@ class MultiAgentSystem():
         else:
             print(agent_1_response)  
         
-        message_dict['final_response'] = self.agent_4(message_dict)
+        #message_dict['final_response'] = self.agent_4(message_dict)
         return message_dict
     
-    def dataset_for_evaluation(self, user_question:str, agent_response:str, context:str):
+    def dataset_for_evaluation(self, user_question:str, agent_response:str, context:str, ground_truth:str):
         context_list = [chunk.strip() for chunk in context.split('\n') if chunk.strip()]
         dataset={
                 "question": [user_question],
                 "answer": [agent_response],
-                "contexts": [context_list]
+                "contexts": [context_list],
+                "reference":[ground_truth]
             }
         
         ragas_llm = LangchainLLMWrapper(self.llm)
@@ -267,7 +254,8 @@ class MultiAgentSystem():
             evaluation_dataset,
             metrics=[
                 faithfulness,
-                answer_relevancy, 
+                answer_relevancy,
+                answer_correctness 
             ], 
                 llm=ragas_llm,
                 embeddings=ragas_embeddings              
@@ -283,51 +271,19 @@ class MultiAgentSystem():
 
 # Using the Code To FINALLY get results!!:
 
-multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key)
+
 paper_path = r"C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
-message_dict = multi_agent_system.run(paper_path, user_question= "How do the F1 scores compare between the DeClarE configuration and the other configurations that require manual intervention?")
-results= multi_agent_system.dataset_for_evaluation(message_dict['user_question'],message_dict['agent_response'],message_dict['context'])
-
-print("User Question:", message_dict['user_question'])
-print("routing strategy:", message_dict['routing_strategy'])
-print("agent response:", message_dict['agent_response'])
-print("Final Response:", message_dict['final_response'])
-print(results)
 
 
+for quer in range(3):
+    question=questions[quer]
+    for m in chunking_models:
+        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=m)
+        message_dict=multi_agent_system.run(paper_path,user_question=question)
+        results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
+        faithfulness=results["faithfulness"].iloc[0]
+        answer_relevancy=results["answer_relevancy"].iloc[0]
+        answer_correctness=results["answer_correctness"].iloc[0]
+        chunking_models_df.add_data(1,quer,m,answer_relevancy,faithfulness,answer_correctness)
+    print(chunking_models_df.df)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# print("User Question:", message_dict['user_question'])
-# print("routing strategy:", message_dict['routing_strategy'])
-# print("agent response:", message_dict['agent_response'])
-# print("Final Response:", message_dict['final_response'])
-# print("Evaluation Results:\n", results)
