@@ -273,7 +273,7 @@ class MultiAgentSystem():
 # Using the Code To FINALLY get results!!:
 
 
-paper_path = r"C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
+paper_path = r"C:\Users\geeta\Downloads\research_paper_2.pdf"  
 
 
 total_results= {"faithfulness":[],
@@ -283,68 +283,47 @@ total_results= {"faithfulness":[],
 
 #Code for running through the Models:
 
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in chunking_models:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         chunking_models_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         chunking_models_df.df.to_csv("Research_2_model.csv")
-# print(total_results)
-# print(chunking_models_df.df)
+for quer in range(3):
+    question=questions[quer]
+    for m in chunking_models:
+        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=m)
+        message_dict=multi_agent_system.run(paper_path,user_question=question)
+        results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
+        faithfulness=results["faithfulness"].iloc[0]
+        answer_relevancy=results["answer_relevancy"].iloc[0]
+        answer_correctness=results["answer_correctness"].iloc[0]
+        chunking_models_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
+        chunking_models_df.df.to_csv("Research_2_model.csv")
 
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("Saving_data_2.csv",index=False)
 
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     
 
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in k_vals:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         k_value_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         k_value_df.df.to_csv("Research_2_k_values.csv")
-# print(total_results)
-# print(k_value_df.df)
+for quer in range(3):
+    question=questions[quer]
+    for m in k_vals:
+        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=m)
+        message_dict=multi_agent_system.run(paper_path,user_question=question)
+        results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
+        faithfulness=results["faithfulness"].iloc[0]
+        answer_relevancy=results["answer_relevancy"].iloc[0]
+        answer_correctness=results["answer_correctness"].iloc[0]
+        k_value_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
+        k_value_df.df.to_csv("Research_2_k_values.csv")
 
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("2_Back_updata_for_k_values.csv",index=False)
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in chunking_overs:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=k_vals[2],chunk_overlap=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         chunking_overs_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         chunking_overs_df.df.to_csv("Research_2_chunk_overlap_values.csv")
-# print(total_results)
-# print(chunking_overs_df.df)
+for quer in range(3):
+    question=questions[quer]
+    for m in chunking_overs:
+        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=k_vals[2],chunk_overlap=m)
+        message_dict=multi_agent_system.run(paper_path,user_question=question)
+        results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
+        faithfulness=results["faithfulness"].iloc[0]
+        answer_relevancy=results["answer_relevancy"].iloc[0]
+        answer_correctness=results["answer_correctness"].iloc[0]
+        chunking_overs_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
+        chunking_overs_df.df.to_csv("Research_2_chunk_overlap_values.csv")
 
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("2Back_updata_for_chunking_overlap_values.csv",index=False)
 
 #----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -357,13 +336,5 @@ for quer in range(3):
         faithfulness=results["faithfulness"].iloc[0]
         answer_relevancy=results["answer_relevancy"].iloc[0]
         answer_correctness=results["answer_correctness"].iloc[0]
-        total_results['faithfulness'].append(faithfulness)
-        total_results['answer_relevancy'].append(answer_relevancy)
-        total_results['answer_correctness'].append(answer_correctness)
         chunking_sizes_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
         chunking_sizes_df.df.to_csv("Research_2_chunk_size_values.csv")
-print(total_results)
-print(chunking_sizes_df.df)
-
-total_results_1=pd.DataFrame(total_results)
-total_results_1.to_csv("2_Back_updata_for_chunking_size_values.csv",index=False)
