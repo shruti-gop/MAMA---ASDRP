@@ -7,13 +7,12 @@ from langchain_community.document_loaders import PyPDFLoader
 import os
 from dotenv import load_dotenv
 import pypdf
-import pandas as pd
 from ragas import evaluate
-from ragas.metrics import Faithfulness, AnswerRelevancy, AnswerCorrectness
+from ragas.metrics import (faithfulness,answer_relevancy,answer_correctness)
+import pandas as pd
+from datasets import Dataset
 from ragas.llms import LangchainLLMWrapper
 from ragas.embeddings import LangchainEmbeddingsWrapper
-from datasets import Dataset
-from openai import OpenAI
 import code_analysis
 
 
@@ -27,22 +26,25 @@ chunking_models=["gpt-4.1-nano","gpt-4.1-mini","gpt-4.1"]
 chunking_models_df=code_analysis.DataCreation("Models",chunking_models)
 
 questions=[
-"What case study did the authors present (industry/domain) and what evidence did they show that the framework improved fairness governance compared to prior approaches?",
-"How do the authors claim that linking fairness requirements directly to evidence improves the credibility of AI fairness assessments?",
-"How do the authors justify that argument-based evidence collection provides a more reliable foundation for AI fairness assurance than standalone metrics?"
+    "How do the F1 scores compare between the DeClarE configuration and the other configurations that require manual intervention?",
+    "The authors claim that “our method does not require any feature-engineering, lexicons, or other manual intervention” (Popat et al.). What is the significance of this in regards to the limitations of prior methods, and what are the differences in design that make this possible?",
+    "What was the setup under which the experiment was performed for evaluating their approach and providing evidence for their approach?"  
 ]
-
 ground_truths=[
     """
-The authors used the finance space/domain to test out their fairness assurance framework. They show evidence such as documented fairness-goals set in the requirements-planning stage, traceable links from model/data artefacts to those fairness claims, and reports of continuous monitoring. The framework enabled a structured “assurance case” that aligns claims, evidence and governance processes, allowing better context and better transparency in the fairness governance.
-
+The results in terms of F1 score were Distant Supervision configuration resulting in the highest for the Snopes dataset with 0.82 and DeClarE (full) with 0.79. 
+Although DeClarE scores lower, it does have the advantage of not requiring manual intervention which makes it more applicable for larger use cases. 
+In the PolitiFact dataset, the DeClarE scored the highest F1 score with 0.68, while the highest manual intervention configuration scored 0.64 (CNN-text) in that same dataset.
 """,
 """
-They argue that when fairness requirements are explicitly tied to concrete evidence, the resulting fairness assessment becomes more transparent and defensible. This linkage creates a traceable chain showing how each fairness claim is supported, rather than leaving metrics to stand on their own. By grounding fairness judgments in documented reasoning, the assessment gains greater credibility with auditors, regulators, and stakeholders.
-
+The limitations of the prior methods were the required manual feature engineering and lexicons. 
+As the style of the text is altered, these manual methods do not work and therefore are not able to be generalized. 
+DeClarE allows the method to not use any manual intervention like conventional methods through looking at the correlation between the claim and its supporting articles through an attention mechanism. With this method it can determine the accuracy of misinformation without the help of manual intervention such as lexicons, making the model more adaptable across different contexts.
 """,
 """
-They state how standalone metrics are insufficient to determine the accuracy of fairness. The argument-based approach uses concrete evidence to determine fairness, which in turn creates a structured chain of justification. Continuous monitoring keeps this system up to date as the system interacts with new environments. This structured, more in-depth justification makes fairness assurance much more accurate than simply standalone metrics.
+Used the Snopes, PolitiFact and NewsTrust datasets. Reserved 10% of the data as validation data for parameter tuning. 
+Reported 10-fold cross validation results on the remaining 90% of the data. 
+The model is trained on 9-folds and the remaining fold is used as test data.
 """
 ]
 
@@ -242,27 +244,25 @@ class MultiAgentSystem():
                 "question": [user_question],
                 "answer": [agent_response],
                 "contexts": [context_list],
-                "ground_truth":[ground_truth]
+                "reference":[ground_truth]
             }
-
-        client = OpenAI(api_key=openai_api_key)
-        ragas_llm = LangchainLLMWrapper(self.llm)  # Wrap your existing ChatOpenAI instance
-        ragas_embeddings = LangchainEmbeddingsWrapper(self.embeddings) 
-        metrics = [
-            Faithfulness(),
-            AnswerRelevancy(),
-            AnswerCorrectness()
-        ]
+        
+        ragas_llm = LangchainLLMWrapper(self.llm)
+        ragas_embeddings = LangchainEmbeddingsWrapper(self.embeddings)
+        
         evaluation_dataset = Dataset.from_dict(dataset)
-        result = evaluate(
+        result= evaluate(
             evaluation_dataset,
-            metrics=metrics,
-            llm=ragas_llm,
-            embeddings=ragas_embeddings
+            metrics=[
+                faithfulness,
+                answer_relevancy,
+                answer_correctness 
+            ], 
+                llm=ragas_llm,
+                embeddings=ragas_embeddings              
+              
         )
         return result.to_pandas()
-        
-
     
 
     
@@ -276,94 +276,18 @@ class MultiAgentSystem():
 paper_path = r"C:\Users\geeta\OneDrive\Desktop\Research_Paper\researchpaper_1.pdf"  
 
 
-total_results= {"faithfulness":[],
-                "answer_relevancy":[],
-                "answer_correctness":[],                
-                }
-
-#Code for running through the Models:
-
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in chunking_models:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         chunking_models_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         chunking_models_df.df.to_csv("Research_2_model.csv")
-# print(total_results)
-# print(chunking_models_df.df)
-
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("Saving_data_2.csv",index=False)
-
-#---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    
-
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in k_vals:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         k_value_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         k_value_df.df.to_csv("Research_2_k_values.csv")
-# print(total_results)
-# print(k_value_df.df)
-
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("2_Back_updata_for_k_values.csv",index=False)
-#-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# for quer in range(3):
-#     question=questions[quer]
-#     for m in chunking_overs:
-#         multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=k_vals[2],chunk_overlap=m)
-#         message_dict=multi_agent_system.run(paper_path,user_question=question)
-#         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
-#         faithfulness=results["faithfulness"].iloc[0]
-#         answer_relevancy=results["answer_relevancy"].iloc[0]
-#         answer_correctness=results["answer_correctness"].iloc[0]
-#         total_results['faithfulness'].append(faithfulness)
-#         total_results['answer_relevancy'].append(answer_relevancy)
-#         total_results['answer_correctness'].append(answer_correctness)
-#         chunking_overs_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-#         chunking_overs_df.df.to_csv("Research_2_chunk_overlap_values.csv")
-# print(total_results)
-# print(chunking_overs_df.df)
-
-# total_results_1=pd.DataFrame(total_results)
-# total_results_1.to_csv("2Back_updata_for_chunking_overlap_values.csv",index=False)
-
-#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
 for quer in range(3):
     question=questions[quer]
-    for m in chunking_sizes:
-        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=chunking_models[1],k_value=k_vals[2],chunk_overlap=chunking_overs[2],chunk_size=m)
+    for m in chunking_models:
+        multi_agent_system = MultiAgentSystem(openai_api_key=openai_api_key,model=m)
         message_dict=multi_agent_system.run(paper_path,user_question=question)
         results=multi_agent_system.dataset_for_evaluation(user_question=question,agent_response=message_dict['agent_response'], context=message_dict['context'],ground_truth=ground_truths[quer])
         faithfulness=results["faithfulness"].iloc[0]
         answer_relevancy=results["answer_relevancy"].iloc[0]
         answer_correctness=results["answer_correctness"].iloc[0]
-        total_results['faithfulness'].append(faithfulness)
-        total_results['answer_relevancy'].append(answer_relevancy)
-        total_results['answer_correctness'].append(answer_correctness)
-        chunking_sizes_df.add_data(2,quer+1,m,answer_relevancy,faithfulness,answer_correctness)
-        chunking_sizes_df.df.to_csv("Research_2_chunk_size_values.csv")
-print(total_results)
-print(chunking_sizes_df.df)
+        chunking_models_df.add_data(1,quer,m,answer_relevancy,faithfulness,answer_correctness)
+    print(chunking_models_df.df)
+  
 
-total_results_1=pd.DataFrame(total_results)
-total_results_1.to_csv("2_Back_updata_for_chunking_size_values.csv",index=False)
+    
+
